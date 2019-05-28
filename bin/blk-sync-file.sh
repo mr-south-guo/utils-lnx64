@@ -9,8 +9,12 @@ log_msg() {
 }
 
 HELP_MSG="\
-Sync two files or block devices by copying only different blocks.
-This is much more efficient than using 'rsync --inplace --no-whole-file ...'
+Sync two files of the same size by updating only different blocks.
+
+For each block (1MiB) of the two files, they are read, compared and updated (if different).
+This process is much more efficient than 'rsync --inplace --no-whole-file ...'.
+Particularly useful for syncing two large files of the same size with only small changes,
+such as virtual harddisk. Great for SSD harddisk's health.
 
 Usage:
 ${THIS} -h 
@@ -115,12 +119,7 @@ log_msg "from : ${dev1}"
 log_msg "  to : ${dev2}"
 log_msg "size : $((SIZE/1024/1024))MiB"
 
-# Original script (from somewhere on the Internet. Cannot find it now.)
-# (16B of MD5) per (1024B of data)
-#MD5_SIZE=$((SIZE/64))
-#echo "MD5 rate (1/64 of data rate):"
-#perl -'MDigest::MD5 md5' -ne 'BEGIN{$/=\1024};print md5($_)' ${dev2} | ${PV} -p -t -e -r -a -s ${MD5_SIZE} | perl -'MDigest::MD5 md5' -ne 'BEGIN{$/=\1024};$b=md5($_); read STDIN,$a,16;if ($a eq $b) {print "s"} else {print "c" . $_}' ${dev1} | ${PV} -b -N 'Difference' | perl -ne 'BEGIN{$/=\1} if ($_ eq"s") {$s++} else {if ($s) {seek STDOUT,$s*1024,1; $s=0}; read ARGV,$buf,1024; print $buf}' 1<> ${dev2}
-
+# Ref: https://lists.samba.org/archive/rsync/2010-June/025164.html
 perl -ne 'BEGIN{$/=\1024}; print $_' ${dev2} | ${PV1} | \
   perl -'MDigest::MD5 md5' -ne 'BEGIN{$/=\1024}; print md5($_)' | \
   perl -'MDigest::MD5 md5' -ne 'BEGIN{$/=\1024}; $b=md5($_); read STDIN,$a,16; if ($a eq $b) {print "s"} else {print "c" . $_}' ${dev1} | ${PV2} | \
@@ -132,4 +131,3 @@ log_msg "Note: The actual diff should be the [Diff - $((SIZE/1024/1024))KiB]."
 
 # Sync the timestamp
 touch --reference=${dev1} ${dev2}
-
